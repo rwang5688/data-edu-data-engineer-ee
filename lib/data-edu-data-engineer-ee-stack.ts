@@ -427,7 +427,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
           "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/mysql_layer.zip"
         ),
         compatibleRuntimes: [
-          lambda.Runtime.PYTHON_3_6,
           lambda.Runtime.PYTHON_3_7,
           lambda.Runtime.PYTHON_3_8,
         ],
@@ -556,7 +555,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     lmsS3FetchRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-        resources: [rawBucket.bucketArn + ""],
+        resources: [rawBucket.bucketArn + "/*"],
       })
     );
     lmsS3FetchRole.addToPolicy(

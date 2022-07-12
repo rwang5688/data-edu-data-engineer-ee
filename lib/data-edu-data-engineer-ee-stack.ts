@@ -51,63 +51,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     const CuratedBucketName = "dataedu-curated-";
     const ResultsBucketName = "dataedu-results-";
 
-    // IAM Role for dms-vpc-role
-    const dmsVPCRolePolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
-      "service-role/AmazonDMSVPCManagementRole"
-    );
-
-    const dmsVPCRole = new iam.Role(this, "dataeduDMSVPCRole", {
-      assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
-      roleName: "dms-vpc-role",
-      managedPolicies: [dmsVPCRolePolicy],
-    });
-
-    dmsVPCRole.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
-
-    // Create dms-vpc-role only if the createDMSRole CFT Parameter is set to "true"
-    (dmsVPCRole.node.defaultChild as iam.CfnRole).cfnOptions.condition =
-      createDMSRoleCondition;
-
-    // IAM Role for DMS Source Endpoint to Secrets Manager Access
-    const dmsSourceEndpointExecutionRole = new iam.Role(
-      this,
-      "dataeduDMSSourceRole",
-      {
-        assumedBy: new iam.ServicePrincipal(
-          "dms." + cdk.Stack.of(this).region + ".amazonaws.com"
-        ),
-        roleName: "dataedu-dms-source-execution-role",
-      }
-    );
-
-    // IAM Role for DMS Target Endpoint to S3 Access
-    const dmsTargetEndpointExecutionRole = new iam.Role(
-      this,
-      "dataeduDMSTargetRole",
-      {
-        assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
-        roleName: "dataedu-dms-target-execution-role",
-      }
-    );
-
-    // IAM Role for SIS Import Lambda Execution Role
-    const sisLambdaExecutionRole = new iam.Role(this, "dataeduSISImportRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-sis-import-lambda-execution-role",
-    });
-
-    // IAM Role for LMS S3 Fetch Lambda Execution Role
-    const lmsS3FetchRole = new iam.Role(this, "dataeduLMSS3FetchRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-lambda-role",
-    });
-
-    // IAM Role for LMS API Fetch Lambda Execution Role
-    const lmsAPIFetchRole = new iam.Role(this, "dataeduLMSAPIFetchRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-data-role",
-    });
-
     // Key Policy json
     const keyPolicyJson = {
       Id: "key-consolepolicy-3",
@@ -247,6 +190,63 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         },
       })
     );
+
+    // IAM Role for dms-vpc-role
+    const dmsVPCRolePolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
+      "service-role/AmazonDMSVPCManagementRole"
+    );
+
+    const dmsVPCRole = new iam.Role(this, "dataeduDMSVPCRole", {
+      assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
+      roleName: "dms-vpc-role",
+      managedPolicies: [dmsVPCRolePolicy],
+    });
+
+    dmsVPCRole.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+
+    // Create dms-vpc-role only if the createDMSRole CFT Parameter is set to "true"
+    (dmsVPCRole.node.defaultChild as iam.CfnRole).cfnOptions.condition =
+      createDMSRoleCondition;
+
+    // IAM Role for DMS Source Endpoint to Secrets Manager Access
+    const dmsSourceEndpointExecutionRole = new iam.Role(
+      this,
+      "dataeduDMSSourceRole",
+      {
+        assumedBy: new iam.ServicePrincipal(
+          "dms." + cdk.Stack.of(this).region + ".amazonaws.com"
+        ),
+        roleName: "dataedu-dms-source-execution-role",
+      }
+    );
+
+    // IAM Role for DMS Target Endpoint to S3 Access
+    const dmsTargetEndpointExecutionRole = new iam.Role(
+      this,
+      "dataeduDMSTargetRole",
+      {
+        assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
+        roleName: "dataedu-dms-target-execution-role",
+      }
+    );
+
+    // IAM Role for SIS Import Lambda Execution Role
+    const sisLambdaExecutionRole = new iam.Role(this, "dataeduSISImportRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-sis-import-lambda-execution-role",
+    });
+
+    // IAM Role for LMS S3 Fetch Lambda Execution Role
+    const lmsS3FetchRole = new iam.Role(this, "dataeduLMSS3FetchRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-fetch-s3-lambda-role",
+    });
+
+    // IAM Role for LMS API Fetch Lambda Execution Role
+    const lmsAPIFetchRole = new iam.Role(this, "dataeduLMSAPIFetchRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-fetch-s3-data-role",
+    });
 
     // Create VPC
     const vpc = new ec2.Vpc(this, "dataeduVPC", {

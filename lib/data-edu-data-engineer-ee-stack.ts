@@ -10,7 +10,6 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as eb from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
-import * as cfn from "aws-cdk-lib/aws-cloudformation";
 import { Construct } from "constructs";
 
 export class DataEduDataEngineerEeStack extends cdk.Stack {

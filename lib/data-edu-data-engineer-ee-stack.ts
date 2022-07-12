@@ -20,7 +20,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     // Remove Default for EE Modules
     const EETeamId = new cdk.CfnParameter(this, "EETeamId", {
       type: "String",
-      default: "12_digit_aws_account_id_or_32_digit_guid",
+      default: "123456789012",
       description: "Unique ID of this Team",
     });
     const GUID = EETeamId.valueAsString;

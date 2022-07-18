@@ -498,7 +498,20 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     sisLambdaExecutionRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
-          "logs:CreateLogGroup",
+          "logs:CreateLogGroup"
+        ],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    sisLambdaExecutionRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
           "logs:CreateLogStream",
           "logs:PutLogEvents",
         ],
@@ -561,7 +574,20 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     lmsS3FetchRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
-          "logs:CreateLogGroup",
+          "logs:CreateLogGroup"
+        ],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    lmsS3FetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
           "logs:CreateLogStream",
           "logs:PutLogEvents",
         ],
@@ -641,7 +667,20 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     lmsAPIFetchRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
-          "logs:CreateLogGroup",
+          "logs:CreateLogGroup"
+        ],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    lmsAPIFetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
           "logs:CreateLogStream",
           "logs:PutLogEvents",
         ],

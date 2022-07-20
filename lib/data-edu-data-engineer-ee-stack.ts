@@ -191,15 +191,14 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     );
 
     // IAM Role for dms-vpc-role
-    const dmsVPCRolePolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
-      "service-role/AmazonDMSVPCManagementRole"
-    );
-
     const dmsVPCRole = new iam.Role(this, "dataeduDMSVPCRole", {
       assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
       roleName: "dms-vpc-role",
-      managedPolicies: [dmsVPCRolePolicy],
     });
+
+    dmsVPCRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonDMSVPCManagementRole')
+    );
 
     dmsVPCRole.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
@@ -219,6 +218,21 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
+    // Create RDS Secret
+    const rdsSecret = new secretsmanager.Secret(this, "dataEDURDSSecret", {
+      secretName: "dataedu-rds-secret",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: "admin" }),
+        generateStringKey: "password",
+        excludePunctuation: true,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Grant DMS Source Endpoint Role access to KMS Key (for Secrets Manager) + Secrets Manager Values
+    key.grantDecrypt(dmsSourceEndpointExecutionRole);
+    rdsSecret.grantRead(dmsSourceEndpointExecutionRole);
+
     // IAM Role for DMS Target Endpoint to S3 Access
     const dmsTargetEndpointExecutionRole = new iam.Role(
       this,
@@ -229,23 +243,8 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
-    // IAM Role for SIS Import Lambda Execution Role
-    const sisLambdaExecutionRole = new iam.Role(this, "dataeduSISImportRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-sis-import-lambda-execution-role",
-    });
-
-    // IAM Role for LMS S3 Fetch Lambda Execution Role
-    const lmsS3FetchRole = new iam.Role(this, "dataeduLMSS3FetchRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-lambda-role",
-    });
-
-    // IAM Role for LMS API Fetch Lambda Execution Role
-    const lmsAPIFetchRole = new iam.Role(this, "dataeduLMSAPIFetchRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-data-role",
-    });
+    // Grant DMS Target Endpoint Role access to S3 Bucket + KMS Key
+    rawBucket.grantReadWrite(dmsTargetEndpointExecutionRole);
 
     // Create VPC
     const vpc = new ec2.Vpc(this, "dataeduVPC", {
@@ -266,28 +265,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         },
       ],
     });
-
-    // Create RDS Secret
-    const rdsSecret = new secretsmanager.Secret(this, "dataEDURDSSecret", {
-      secretName: "dataedu-rds-secret",
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "admin" }),
-        generateStringKey: "password",
-        excludePunctuation: true,
-      },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Grant DMS Target Endpoint Role access to S3 Bucket + KMS Key
-    rawBucket.grantReadWrite(dmsTargetEndpointExecutionRole);
-
-    // Grant DMS Source Endpoint Role access to KMS Key (for Secrets Manager) + Secrets Manager Values
-    key.grantDecrypt(dmsSourceEndpointExecutionRole);
-    rdsSecret.grantRead(dmsSourceEndpointExecutionRole);
-
-    // Grant SIS Import Lambda Function access to KMS Key + Secrets Manager Secret Values
-    key.grantDecrypt(sisLambdaExecutionRole);
-    rdsSecret.grantRead(sisLambdaExecutionRole);
 
     // Create RDS Instance Security Group
     const rdsInstanceSG = new ec2.SecurityGroup(this, "dataeduRDSsg", {
@@ -433,32 +410,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
-    // Create SIS Import Lambda Function
-    const sisLambdaImport = new lambda.Function(
-      this,
-      "dataeduSISLambdaFunction",
-      {
-        code: lambda.Code.fromBucket(
-          eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-load-sisdb.zip"
-        ),
-        runtime: lambda.Runtime.PYTHON_3_8,
-        handler: "lambda_function.lambda_handler",
-        functionName: "dataedu-load-sisdb",
-        memorySize: 512,
-        timeout: cdk.Duration.seconds(900),
-        layers: [sisLambdaLayer],
-        environment: {
-          secret_name: rdsSecret.secretName,
-          region_name: cdk.Stack.of(this).region,
-        },
-        vpc: vpc,
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_NAT },
-        role: sisLambdaExecutionRole,
-        securityGroups: [sisLambdaSG],
-        reservedConcurrentExecutions: 10,
-      }
-    );
+    // IAM Role for SIS Import Lambda Execution Role
+    const sisLambdaExecutionRole = new iam.Role(this, "dataeduSISImportRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-sis-import-lambda-execution-role",
+    });
 
     // Add policy to SIS Import Lambda Execution Role to create and write CloudWatch logs
     sisLambdaExecutionRole.addManagedPolicy(
@@ -501,6 +457,37 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       })
     );
 
+    // Grant SIS Import Lambda Function access to KMS Key + Secrets Manager Secret Values
+    key.grantDecrypt(sisLambdaExecutionRole);
+    rdsSecret.grantRead(sisLambdaExecutionRole);
+
+    // Create SIS Import Lambda Function
+    const sisLambdaImport = new lambda.Function(
+      this,
+      "dataeduSISLambdaFunction",
+      {
+        code: lambda.Code.fromBucket(
+          eeBucket,
+          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-load-sisdb.zip"
+        ),
+        runtime: lambda.Runtime.PYTHON_3_8,
+        handler: "lambda_function.lambda_handler",
+        functionName: "dataedu-load-sisdb",
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(900),
+        layers: [sisLambdaLayer],
+        environment: {
+          secret_name: rdsSecret.secretName,
+          region_name: cdk.Stack.of(this).region,
+        },
+        vpc: vpc,
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_NAT },
+        role: sisLambdaExecutionRole,
+        securityGroups: [sisLambdaSG],
+        reservedConcurrentExecutions: 10,
+      }
+    );
+
     // Create LMS Config Parameter
     const lmsSSMParam = new ssm.StringParameter(this, "dataeduSSMParam", {
       parameterName: "/dataedu/lms-demo/state",
@@ -512,6 +499,31 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         rawBucket.bucketName +
         '", "base_s3_prefix":"lmsapi"}',
     });
+
+    // IAM Role for LMS S3 Fetch Lambda Execution Role
+    const lmsS3FetchRole = new iam.Role(this, "dataeduLMSS3FetchRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-fetch-s3-lambda-role",
+    });
+
+    // Add policy to LMS S3 Fetch Lambda Execution Role to create and write CloudWatch logs
+    lmsS3FetchRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+    );
+
+    // Add policies to LMS S3 Fetch Lambda Execution Role
+    lmsS3FetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:ListBucket"],
+        resources: [rawBucket.bucketArn],
+      })
+    );
+    lmsS3FetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+        resources: [rawBucket.bucketArn + "/*"],
+      })
+    );
 
     // Create LMS S3 Fetch Lambda Function
     const lmsS3FetchLambda = new lambda.Function(
@@ -534,56 +546,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
-    // Add policy to LMS S3 Fetch Lambda Execution Role to create and write CloudWatch logs
-    lmsS3FetchRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
-    );
-
-    // Add policies to LMS S3 Fetch Lambda Execution Role
-    lmsS3FetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["s3:ListBucket"],
-        resources: [rawBucket.bucketArn],
-      })
-    );
-    lmsS3FetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-        resources: [rawBucket.bucketArn + "/*"],
-      })
-    );
-
-    // Create LMS API Fetch Lambda Function
-    const lmsAPIFetchLambda = new lambda.Function(
-      this,
-      "dataeduLMSAPIFetchLambda",
-      {
-        code: lambda.Code.fromBucket(
-          eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-fetch-lmsapi.zip"
-        ),
-        runtime: lambda.Runtime.PYTHON_3_7,
-        handler: "lambda_function.lambda_handler",
-        functionName: "dataedu-fetch-lmsapi",
-        memorySize: 256,
-        timeout: cdk.Duration.seconds(600),
-        role: lmsAPIFetchRole,
-        description:
-          "Lambda function that mimics invoking an API to obtain data from a SaaS app",
-        reservedConcurrentExecutions: 10,
-      }
-    );
-
-    // Create EventBridge Rule
-    const lmsAPIEventRule = new eb.Rule(this, "dataeduEventBridgeRule", {
-      description: "Invokes demo API on a scheduled basis",
-      ruleName: "dataedu-lmsapi-sync",
-      schedule: eb.Schedule.rate(cdk.Duration.minutes(1)),
-      enabled: false,
+    // IAM Role for LMS API Fetch Lambda Execution Role
+    const lmsAPIFetchRole = new iam.Role(this, "dataeduLMSAPIFetchRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      roleName: "dataedu-fetch-s3-data-role",
     });
-
-    // Add Lambda Target to Event Rule
-    lmsAPIEventRule.addTarget(new targets.LambdaFunction(lmsAPIFetchLambda));
 
     // Add policy to LMS API Fetch Lambda Execution Role to create and write CloudWatch logs
     lmsAPIFetchRole.addManagedPolicy(
@@ -621,5 +588,38 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         ],
       })
     );
+
+    // Create LMS API Fetch Lambda Function
+    const lmsAPIFetchLambda = new lambda.Function(
+      this,
+      "dataeduLMSAPIFetchLambda",
+      {
+        code: lambda.Code.fromBucket(
+          eeBucket,
+          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-fetch-lmsapi.zip"
+        ),
+        runtime: lambda.Runtime.PYTHON_3_7,
+        handler: "lambda_function.lambda_handler",
+        functionName: "dataedu-fetch-lmsapi",
+        memorySize: 256,
+        timeout: cdk.Duration.seconds(600),
+        role: lmsAPIFetchRole,
+        description:
+          "Lambda function that mimics invoking an API to obtain data from a SaaS app",
+        reservedConcurrentExecutions: 10,
+      }
+    );
+
+    // Create EventBridge Rule
+    const lmsAPIEventRule = new eb.Rule(this, "dataeduEventBridgeRule", {
+      description: "Invokes demo API on a scheduled basis",
+      ruleName: "dataedu-lmsapi-sync",
+      schedule: eb.Schedule.rate(cdk.Duration.minutes(1)),
+      enabled: false,
+    });
+
+    // Add Lambda Target to Event Rule
+    lmsAPIEventRule.addTarget(new targets.LambdaFunction(lmsAPIFetchLambda));
   }
 }
+

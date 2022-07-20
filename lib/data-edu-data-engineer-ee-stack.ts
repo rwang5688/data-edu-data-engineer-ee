@@ -460,6 +460,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
+    // Add policy to SIS Import Lambda Execution Role to create and write CloudWatch logs
+    sisLambdaExecutionRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+    );
+    
     // Add policies to SIS Import Lambda Execution Role
     sisLambdaExecutionRole.addToPolicy(
       new iam.PolicyStatement({
@@ -492,35 +497,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
             ":" +
             cdk.Stack.of(this).account +
             ":function:dataedu-*",
-        ],
-      })
-    );
-    sisLambdaExecutionRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogGroup"
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":*",
-        ],
-      })
-    );
-    sisLambdaExecutionRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":log-group:/aws/lambda/dataedu-load-sisdb",
         ],
       })
     );
@@ -558,6 +534,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
+    // Add policy to LMS S3 Fetch Lambda Execution Role to create and write CloudWatch logs
+    lmsS3FetchRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+    );
+
     // Add policies to LMS S3 Fetch Lambda Execution Role
     lmsS3FetchRole.addToPolicy(
       new iam.PolicyStatement({
@@ -569,35 +550,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
         resources: [rawBucket.bucketArn + "/*"],
-      })
-    );
-    lmsS3FetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogGroup"
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":*",
-        ],
-      })
-    );
-    lmsS3FetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":log-group:/aws/lambda/dataedu-fetch-s3-data",
-        ],
       })
     );
 
@@ -633,6 +585,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     // Add Lambda Target to Event Rule
     lmsAPIEventRule.addTarget(new targets.LambdaFunction(lmsAPIFetchLambda));
 
+    // Add policy to LMS API Fetch Lambda Execution Role to create and write CloudWatch logs
+    lmsAPIFetchRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+    );
+    
     // Add policies to LMS API Fetch Lambda Execution Role
     lmsAPIFetchRole.addToPolicy(
       new iam.PolicyStatement({
@@ -661,35 +618,6 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
             ":" +
             cdk.Stack.of(this).account +
             ":rule/dataedu-lmsapi-sync",
-        ],
-      })
-    );
-    lmsAPIFetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogGroup"
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":*",
-        ],
-      })
-    );
-    lmsAPIFetchRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: [
-          "arn:aws:logs:" +
-            cdk.Stack.of(this).region +
-            ":" +
-            cdk.Stack.of(this).account +
-            ":log-group:/aws/lambda/dataedu-fetch-lmsapi",
         ],
       })
     );

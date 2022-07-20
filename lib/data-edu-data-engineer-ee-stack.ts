@@ -256,7 +256,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
           name: "dataedu-public-",
           subnetType: ec2.SubnetType.PUBLIC,
           cidrMask: 24,
-          mapPublicIpOnLaunch: false,
+          mapPublicIpOnLaunch: true,
         },
         {
           name: "dataedu-private-",

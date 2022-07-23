@@ -10,6 +10,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as eb from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as glue from "aws-cdk-lib/aws-glue";
 import { Construct } from "constructs";
 
 export class DataEduDataEngineerEeStack extends cdk.Stack {
@@ -26,7 +27,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     const GUID = EETeamId.valueAsString;
 
     // DMS Role Creation CloudFormation Parameter + Condition
-    const createDMSRole = new cdk.CfnParameter(this, "createDMSRole", {
+    const CreateDMSRole = new cdk.CfnParameter(this, "CreateDMSRole", {
       allowedValues: ["true", "false"],
       constraintDescription: "Value must be set to true or false.",
       default: "true",
@@ -34,13 +35,9 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         "Set this value to false if the 'dms-vpc-role' IAM Role has already been created in this AWS Account.",
     });
 
-    const createDMSRoleCondition = new cdk.CfnCondition(
-      this,
-      "createDMSRoleCondition",
-      {
-        expression: cdk.Fn.conditionEquals(createDMSRole, "true"),
-      }
-    );
+    const createDMSRoleCondition = new cdk.CfnCondition(this, "createDMSRoleCondition", {
+        expression: cdk.Fn.conditionEquals(CreateDMSRole, "true"),
+    });
 
     // KMS Key Name
     const KeyName = "dataedu-key";
@@ -190,6 +187,17 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       })
     );
 
+    // Create RDS Secret
+    const rdsSecret = new secretsmanager.Secret(this, "dataEDURDSSecret", {
+      secretName: "dataedu-rds-secret",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: "admin" }),
+        generateStringKey: "password",
+        excludePunctuation: true,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // IAM Role for dms-vpc-role
     const dmsVPCRole = new iam.Role(this, "dataeduDMSVPCRole", {
       assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
@@ -207,26 +215,11 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       createDMSRoleCondition;
 
     // IAM Role for DMS Source Endpoint to Secrets Manager Access
-    const dmsSourceEndpointExecutionRole = new iam.Role(
-      this,
-      "dataeduDMSSourceRole",
-      {
+    // ... requires DMS regional endpoint in order to access Secrets Manager secret
+    const dmsSourceEndpointExecutionRole = new iam.Role(this, "dataeduDMSSourceRole", {
         assumedBy: new iam.ServicePrincipal(
           "dms." + cdk.Stack.of(this).region + ".amazonaws.com"
         ),
-        roleName: "dataedu-dms-source-execution-role",
-      }
-    );
-
-    // Create RDS Secret
-    const rdsSecret = new secretsmanager.Secret(this, "dataEDURDSSecret", {
-      secretName: "dataedu-rds-secret",
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "admin" }),
-        generateStringKey: "password",
-        excludePunctuation: true,
-      },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // Grant DMS Source Endpoint Role access to KMS Key (for Secrets Manager) + Secrets Manager Values
@@ -234,14 +227,9 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     rdsSecret.grantRead(dmsSourceEndpointExecutionRole);
 
     // IAM Role for DMS Target Endpoint to S3 Access
-    const dmsTargetEndpointExecutionRole = new iam.Role(
-      this,
-      "dataeduDMSTargetRole",
-      {
+    const dmsTargetEndpointExecutionRole = new iam.Role(this, "dataeduDMSTargetRole", {
         assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
-        roleName: "dataedu-dms-target-execution-role",
-      }
-    );
+    });
 
     // Grant DMS Target Endpoint Role access to S3 Bucket + KMS Key
     rawBucket.grantReadWrite(dmsTargetEndpointExecutionRole);
@@ -367,11 +355,13 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       }
     );
 
-    // Adds a dependency to the DMS Source Endpoint, so on stack delete the DMS Source Endpoint is deleted before the dms-vpc-role
-    //dmsSourceEndpoint.node.addDependency(lmsS3FetchRole);
+    // Adds a dependency to the DMS Source Endpoint,
+    // so on stack delete the DMS Source Endpoint is deleted before the dms-vpc-role
+    //dmsSourceEndpoint.node.addDependency(dmsVPCRole);
 
     // Create L1 DMS Target Endpoint
-    /*    const dmsTargetEndpoint = new dms.CfnEndpoint(
+    /*
+    const dmsTargetEndpoint = new dms.CfnEndpoint(
       this,
       "dataeduDMSTargetEndpoint",
       {
@@ -385,7 +375,8 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
         },
         extraConnectionAttributes: `encryptionMode=SSE_KMS;serverSideEncryptionKmsKeyId=${key.keyArn};dataFormat=parquet`,
       }
-    );*/
+    );
+    */
 
     // Import Event Engine Asset Bucket
     const eeBucket = s3.Bucket.fromBucketName(
@@ -413,13 +404,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     // IAM Role for SIS Import Lambda Execution Role
     const sisLambdaExecutionRole = new iam.Role(this, "dataeduSISImportRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-sis-import-lambda-execution-role",
     });
-
-    // Add policy to SIS Import Lambda Execution Role to create and write CloudWatch logs
-    sisLambdaExecutionRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
-    );
     
     // Add policies to SIS Import Lambda Execution Role
     sisLambdaExecutionRole.addToPolicy(
@@ -453,6 +438,32 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
             ":" +
             cdk.Stack.of(this).account +
             ":function:dataedu-*",
+        ],
+      })
+    );
+    // Add policies in order to write CloudWatch logs
+    // https://aws.amazon.com/premiumsupport/knowledge-center/lambda-cloudwatch-log-streams-error/
+    sisLambdaExecutionRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogGroup"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    sisLambdaExecutionRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":log-group:/aws/lambda/dataedu-load-sisdb:*",
         ],
       })
     );
@@ -503,13 +514,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     // IAM Role for LMS S3 Fetch Lambda Execution Role
     const lmsS3FetchRole = new iam.Role(this, "dataeduLMSS3FetchRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-lambda-role",
     });
-
-    // Add policy to LMS S3 Fetch Lambda Execution Role to create and write CloudWatch logs
-    lmsS3FetchRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
-    );
 
     // Add policies to LMS S3 Fetch Lambda Execution Role
     lmsS3FetchRole.addToPolicy(
@@ -522,6 +527,32 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
         resources: [rawBucket.bucketArn + "/*"],
+      })
+    );
+    // Add policies in order to write CloudWatch logs
+    // https://aws.amazon.com/premiumsupport/knowledge-center/lambda-cloudwatch-log-streams-error/
+    lmsS3FetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogGroup"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    lmsS3FetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":log-group:/aws/lambda/dataedu-fetch-s3-data:*",
+        ],
       })
     );
 
@@ -549,13 +580,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
     // IAM Role for LMS API Fetch Lambda Execution Role
     const lmsAPIFetchRole = new iam.Role(this, "dataeduLMSAPIFetchRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      roleName: "dataedu-fetch-s3-data-role",
     });
-
-    // Add policy to LMS API Fetch Lambda Execution Role to create and write CloudWatch logs
-    lmsAPIFetchRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
-    );
     
     // Add policies to LMS API Fetch Lambda Execution Role
     lmsAPIFetchRole.addToPolicy(
@@ -585,6 +610,32 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
             ":" +
             cdk.Stack.of(this).account +
             ":rule/dataedu-lmsapi-sync",
+        ],
+      })
+    );
+    // Add policies in order to write CloudWatch logs
+    // https://aws.amazon.com/premiumsupport/knowledge-center/lambda-cloudwatch-log-streams-error/
+    lmsAPIFetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogGroup"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":*",
+        ],
+      })
+    );
+    lmsAPIFetchRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+        resources: [
+          "arn:aws:logs:" +
+            cdk.Stack.of(this).region +
+            ":" +
+            cdk.Stack.of(this).account +
+            ":log-group:/aws/lambda/dataedu-fetch-lmsapi:*",
         ],
       })
     );
@@ -620,6 +671,63 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
 
     // Add Lambda Target to Event Rule
     lmsAPIEventRule.addTarget(new targets.LambdaFunction(lmsAPIFetchLambda));
+
+    // IAM Role for Fetch Demo Data Lambda Execution Role
+    const glueCrawlerRole = new iam.Role(this, 'dataeduGlueCrawlerRole', {
+      assumedBy: new iam.ServicePrincipal('glue.amazonaws.com'),
+    });
+
+    // Add AmazonS3FullAccess in order to acccess raw data bucket
+    glueCrawlerRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole')
+    );
+    
+    // Add policies in order to read raw bucket
+    glueCrawlerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:List*"],
+        resources: [rawBucket.bucketArn],
+      })
+    );
+    glueCrawlerRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [rawBucket.bucketArn + "/*"],
+      })
+    );
+
+    // Set Raw Bucket Path
+    const rawBucketPath = 's3://'+rawBucket.bucketName+'/';
+
+    // sisdemo_crawler: Crawls S3 target path; creates db_raw_sisdemo tables
+    const sisdemoCrawler = new glue.CfnCrawler(this, 'dataeduSisdemoCrawler', {
+      role: glueCrawlerRole.roleArn,
+      targets: {
+        s3Targets: [{
+          path: rawBucketPath+'sisdb/sisdemo/',
+        }],
+      },
+    
+      // the properties below are optional
+      databaseName: 'db_raw_sisdemo',
+      description: 'SIS demo data crawler.',
+      name: 'dataedu-sisdemo-crawler',
+    });
+
+    // lmsdemo_crawler: Crawls S3 target path; creates db_raw_lmsdemo tables
+    const lmsdemoCrawler = new glue.CfnCrawler(this, 'dataedLmsdemoCrawler', {
+      role: glueCrawlerRole.roleArn,
+      targets: {
+        s3Targets: [{
+          path: rawBucketPath+'lmsapi/',
+        }],
+      },
+    
+      // the properties below are optional
+      databaseName: 'db_raw_lmsdemo',
+      description: 'LMS demo data crawler.',
+      name: 'dataedu-lmsdemo-crawler',
+    });
   }
 }
 

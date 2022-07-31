@@ -16,7 +16,7 @@ import { Construct } from "constructs";
 export class DataEduDataEngineerEeStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
-
+    
     // Event Engine Parameters
     // Remove Default for EE Modules
     const EETeamId = new cdk.CfnParameter(this, "EETeamId", {
@@ -392,7 +392,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       {
         code: lambda.Code.fromBucket(
           eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/mysql_layer.zip"
+          "modules/f7ff818991a14cfb80e2617aad4431d1/v1/lambda/mysql_boto3_layer.zip"
         ),
         compatibleRuntimes: [
           lambda.Runtime.PYTHON_3_7,
@@ -479,7 +479,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       {
         code: lambda.Code.fromBucket(
           eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-load-sisdb.zip"
+          "modules/f7ff818991a14cfb80e2617aad4431d1/v1/lambda/dataedu-load-sisdb.zip"
         ),
         runtime: lambda.Runtime.PYTHON_3_8,
         handler: "lambda_function.lambda_handler",
@@ -563,7 +563,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       {
         code: lambda.Code.fromBucket(
           eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-fetch-s3-data.zip"
+          "modules/f7ff818991a14cfb80e2617aad4431d1/v1/lambda/dataedu-fetch-s3-data.zip"
         ),
         runtime: lambda.Runtime.PYTHON_3_7,
         handler: "lambda_handler.lambda_handler",
@@ -647,7 +647,7 @@ export class DataEduDataEngineerEeStack extends cdk.Stack {
       {
         code: lambda.Code.fromBucket(
           eeBucket,
-          "modules/cfdd4f678e99415a9c1f11342a3a9887/v1/lambda/dataedu-fetch-lmsapi.zip"
+          "modules/f7ff818991a14cfb80e2617aad4431d1/v1/lambda/dataedu-fetch-lmsapi.zip"
         ),
         runtime: lambda.Runtime.PYTHON_3_7,
         handler: "lambda_function.lambda_handler",
